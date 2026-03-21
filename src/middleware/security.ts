@@ -13,7 +13,7 @@ const securityMiddleware = async (req: Request, res: Response, next: NextFunctio
 
         switch (role) {
             case 'admin':
-                limit = 2;
+                limit = 20;
                 message = 'Admin request limit exceeded (20 per minute). Slow down.'
                 break;
             case 'teacher':
@@ -54,7 +54,7 @@ const securityMiddleware = async (req: Request, res: Response, next: NextFunctio
         }
 
         if (decision.isDenied() && decision.reason.isRateLimit()) {
-            return res.status(403).json({ error: 'Too many request', message });
+            return res.status(429).json({ error: 'Too many request', message });
         }
 
         next();
