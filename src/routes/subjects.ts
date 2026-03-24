@@ -1,6 +1,6 @@
 import { and, desc, eq, getTableColumns, ilike, or, sql } from "drizzle-orm";
 import express from "express";
-import { departmentRelations, departments, subjects } from "../db/schema/index.js";
+import { departments, subjects } from "../db/schema/index.js";
 import { db } from "../db/index.js";
 
 const router = express.Router();
@@ -37,7 +37,11 @@ router.get("/", async (req, res) => {
         // Combine all filters using AND if any exist
         const whereClause = filterConditions.length > 0 ? and(...filterConditions) : undefined;
 
-        const countResult = await db.select({ count: sql<number>`count(*)` }).from(subjects).leftJoin(departments, eq(subjects.departmentId, departments.id)).where(whereClause);
+        const countResult = await db
+            .select({ count: sql<number>`count(*)` })
+            .from(subjects)
+            .leftJoin(departments, eq(subjects.departmentId, departments.id))
+            .where(whereClause);
 
         const totalCount = countResult[0]?.count ?? 0;
 
