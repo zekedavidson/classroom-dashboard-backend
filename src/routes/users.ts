@@ -1,7 +1,8 @@
 import { and, desc, eq, getTableColumns, ilike, or, sql } from "drizzle-orm";
 import express from "express";
-import { user, roleEnum } from "../db/schema/index.js";
 import { db } from "../db/index.js";
+import { user as userTable } from "../db/schema/auth.js";
+import { checkRole } from "../middleware/auth.js";
 
 const router = express.Router();
 
@@ -21,34 +22,34 @@ router.get("/", async (req, res) => {
         if (search) {
             filterConditions.push(
                 or(
-                    ilike(user.name, `%${search}%`),
-                    ilike(user.email, `%${search}%`)
+                    ilike(userTable.name, `%${search}%`),
+                    ilike(userTable.email, `%${search}%`)
                 )
             )
         }
 
         // If role filter exists, match role exactly
         if (role) {
-            filterConditions.push(eq(user.role, String(role) as 'student' | 'teacher' | 'admin'));
+            filterConditions.push(eq(userTable.role, String(role) as 'student' | 'teacher' | 'admin'));
         }
 
         // Combine all filters using AND if any exist
         const whereClause = filterConditions.length > 0 ? and(...filterConditions) : undefined;
 
-        const countResult = await db.select({ count: sql<number>`count(*)` }).from(user).where(whereClause);
+        const countResult = await db.select({ count: sql<number>`count(*)` }).from(userTable).where(whereClause);
 
         const totalCount = countResult[0]?.count ?? 0;
 
-        const usersList = await db.select({
-            ...getTableColumns(user),
-        }).from(user)
+        const userTablesList = await db.select({
+            ...getTableColumns(userTable),
+        }).from(userTable)
             .where(whereClause)
-            .orderBy(desc(user.createdAt))
+            .orderBy(desc(userTable.createdAt))
             .limit(limitPerPage)
             .offset(offset);
 
         res.status(200).json({
-            data: usersList,
+            data: userTablesList,
             pagination: {
                 page: currentPage,
                 limit: limitPerPage,
@@ -58,40 +59,40 @@ router.get("/", async (req, res) => {
         })
 
     } catch (e) {
-        console.error(`GET /users error: ${e}`);
-        res.status(500).json({ error: 'Failed to get users' });
+        console.error(`GET /userTables error: ${e}`);
+        res.status(500).json({ error: 'Failed to get userTables' });
     }
 })
 
-// Get user details
+// Get userTable details
 router.get("/:id", async (req, res) => {
     try {
-        const userId = req.params.id;
-        const [userDetails] = await db
+        const userTableId = req.params.id;
+        const [userTableDetails] = await db
             .select()
-            .from(user)
-            .where(eq(user.id, userId));
+            .from(userTable)
+            .where(eq(userTable.id, String(userTableId)));
 
-        if (!userDetails) {
+        if (!userTableDetails) {
             return res.status(404).json({ error: "User not found" });
         }
 
-        res.status(200).json({ data: userDetails });
+        res.status(200).json({ data: userTableDetails });
     } catch (error) {
-        console.error("GET /users/:id error:", error);
-        res.status(500).json({ error: "Failed to fetch user details" });
+        console.error("GET /userTables/:id error:", error);
+        res.status(500).json({ error: "Failed to fetch userTable details" });
     }
 });
 
-// Create a user
-router.post("/", async (req, res) => {
+// Create a userTable
+router.post("/", checkRole(["admin", "teacher"]), async (req, res) => {
     try {
         const { name, email, role, image, emailVerified } = req.body;
         // In a real app auth should handle creation, but we provide this for admin CRUD
         const newId = crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 10);
         
         const [createdUser] = await db
-            .insert(user)
+            .insert(userTable)
             .values({ 
                 id: newId, 
                 name, 
@@ -108,21 +109,21 @@ router.post("/", async (req, res) => {
 
         res.status(201).json({ data: createdUser });
     } catch (error) {
-        console.error("POST /users error:", error);
-        res.status(500).json({ error: "Failed to create user" });
+        console.error("POST /userTables error:", error);
+        res.status(500).json({ error: "Failed to create userTable" });
     }
 });
 
-// Update a user
-router.put("/:id", async (req, res) => {
+// Update a userTable
+router.put("/:id", checkRole(["admin", "teacher"]), async (req, res) => {
     try {
-        const userId = req.params.id;
+        const userTableId = req.params.id;
         const { name, email, role, image, emailVerified } = req.body;
 
         const [updatedUser] = await db
-            .update(user)
+            .update(userTable)
             .set({ name, email, role, image, emailVerified, updatedAt: new Date() })
-            .where(eq(user.id, userId))
+            .where(eq(userTable.id, String(userTableId)))
             .returning();
 
         if (!updatedUser) {
@@ -131,20 +132,20 @@ router.put("/:id", async (req, res) => {
 
         res.status(200).json({ data: updatedUser });
     } catch (error) {
-        console.error("PUT /users/:id error:", error);
-        res.status(500).json({ error: "Failed to update user" });
+        console.error("PUT /userTables/:id error:", error);
+        res.status(500).json({ error: "Failed to update userTable" });
     }
 });
 
-// Delete a user
-router.delete("/:id", async (req, res) => {
+// Delete a userTable
+router.delete("/:id", checkRole(["admin", "teacher"]), async (req, res) => {
     try {
-        const userId = req.params.id;
+        const userTableId = req.params.id;
 
         const [deletedUser] = await db
-            .delete(user)
-            .where(eq(user.id, userId))
-            .returning({ id: user.id });
+            .delete(userTable)
+            .where(eq(userTable.id, String(userTableId)))
+            .returning({ id: userTable.id });
 
         if (!deletedUser) {
             return res.status(404).json({ error: "User not found" });

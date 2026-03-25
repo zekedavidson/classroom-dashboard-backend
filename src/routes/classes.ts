@@ -1,7 +1,7 @@
 import express from "express";
 import { db } from "../db/index.js";
-import { classes, departments, subjects, enrollments } from "../db/schema/app.js";
-import { user } from "../db/schema/auth.js";
+import { classes, departments, enrollments, subjects, user as userTable } from "../db/schema/index.js";
+import { checkRole } from "../middleware/auth.js";
 import { and, desc, eq, getTableColumns, ilike, or, sql } from "drizzle-orm";
 
 const router = express.Router();
@@ -35,9 +35,9 @@ router.get("/", async (req, res) => {
         }
 
         if (teacher) {
-            filterConditions.push(ilike(user.name, `%${teacher}%`))
-            const userPattern = `%${String(teacher).replace(/[%_]/g, '\\$&')}%`;
-            filterConditions.push(ilike(user.name, userPattern));
+            filterConditions.push(ilike(userTable.name, `%${teacher}%`))
+            const userTablePattern = `%${String(teacher).replace(/[%_]/g, '\\$&')}%`;
+            filterConditions.push(ilike(userTable.name, userTablePattern));
         }
 
         const whereClause = filterConditions.length > 0 ? and(...filterConditions) : undefined;
@@ -45,7 +45,7 @@ router.get("/", async (req, res) => {
         const countResult = await db.select({ count: sql<number>`count(*)` })
             .from(classes)
             .leftJoin(subjects, eq(classes.subjectId, subjects.id))
-            .leftJoin(user, eq(classes.teacherId, user.id))
+            .leftJoin(userTable, eq(classes.teacherId, userTable.id))
             .where(whereClause)
 
         const totalCount = countResult[0]?.count ?? 0;
@@ -53,10 +53,10 @@ router.get("/", async (req, res) => {
         const classesList = await db.select({
             ...getTableColumns(classes),
             subject: { ...getTableColumns(subjects) },
-            teacher: { ...getTableColumns(user) }
+            teacher: { ...getTableColumns(userTable) }
         }).from(classes)
             .leftJoin(subjects, eq(classes.subjectId, subjects.id))
-            .leftJoin(user, eq(classes.teacherId, user.id))
+            .leftJoin(userTable, eq(classes.teacherId, userTable.id))
             .where(whereClause)
             .orderBy(desc(classes.createdAt))
             .limit(limitPerPage)
@@ -94,12 +94,12 @@ router.get('/:id', async (req, res) => {
                 ...getTableColumns(departments)
             },
             teacher: {
-                ...getTableColumns(user)
+                ...getTableColumns(userTable)
             }
         })
         .from(classes)
         .leftJoin(subjects, eq(classes.subjectId, subjects.id))
-        .leftJoin(user, eq(classes.teacherId, user.id))
+        .leftJoin(userTable, eq(classes.teacherId, userTable.id))
         .leftJoin(departments, eq(subjects.departmentId, departments.id))
         .where(eq(classes.id, classId))
 
@@ -108,7 +108,7 @@ router.get('/:id', async (req, res) => {
     res.status(200).json({ data: classDetails })
 })
 
-router.post('/', async (req, res) => {
+router.post("/", checkRole(["admin", "teacher"]), async (req, res) => {
     try {
         const [createdClass] = await db
             .insert(classes)
@@ -125,7 +125,7 @@ router.post('/', async (req, res) => {
 })
 
 // Update a class
-router.put("/:id", async (req, res) => {
+router.put("/:id", checkRole(["admin", "teacher"]), async (req, res) => {
     try {
         const classId = Number(req.params.id);
         if (!Number.isFinite(classId)) return res.status(400).json({ error: 'Invalid class id' });
@@ -148,7 +148,7 @@ router.put("/:id", async (req, res) => {
 });
 
 // Delete a class
-router.delete("/:id", async (req, res) => {
+router.delete("/:id", checkRole(["admin", "teacher"]), async (req, res) => {
     try {
         const classId = Number(req.params.id);
         if (!Number.isFinite(classId)) return res.status(400).json({ error: 'Invalid class id' });
@@ -175,12 +175,12 @@ router.get("/:id/enrollments", async (req, res) => {
 
         const enrolledStudents = await db
             .select({
-                ...getTableColumns(user),
+                ...getTableColumns(userTable),
                 enrollmentId: enrollments.id,
                 enrolledAt: enrollments.createdAt,
             })
             .from(enrollments)
-            .innerJoin(user, eq(enrollments.studentId, user.id))
+            .innerJoin(userTable, eq(enrollments.studentId, userTable.id))
             .where(eq(enrollments.classId, classId));
 
         res.status(200).json({ data: enrolledStudents });
@@ -191,7 +191,7 @@ router.get("/:id/enrollments", async (req, res) => {
 });
 
 // Enroll a student
-router.post("/:id/enroll", async (req, res) => {
+router.post("/:id/enroll", checkRole(["admin", "teacher"]), async (req, res) => {
     try {
         const classId = Number(req.params.id);
         if (!Number.isFinite(classId)) return res.status(400).json({ error: 'Invalid class id' });
@@ -212,20 +212,20 @@ router.post("/:id/enroll", async (req, res) => {
 });
 
 // Unenroll a student
-router.delete("/:id/enroll/:studentId", async (req, res) => {
+router.delete("/:id/enroll/:studentId", checkRole(["admin", "teacher"]), async (req, res) => {
     try {
         const classId = Number(req.params.id);
         const studentId = req.params.studentId;
         if (!Number.isFinite(classId)) return res.status(400).json({ error: 'Invalid class id' });
 
-        const [unenrolled] = await db
+        const [deletedEnrollment] = await db
             .delete(enrollments)
-            .where(and(eq(enrollments.classId, classId), eq(enrollments.studentId, studentId)))
+            .where(and(eq(enrollments.classId, classId), eq(enrollments.studentId, studentId as string)))
             .returning();
 
-        if (!unenrolled) return res.status(404).json({ error: "Enrollment not found" });
+        if (!deletedEnrollment) return res.status(404).json({ error: "Enrollment not found" });
 
-        res.status(200).json({ data: unenrolled });
+        res.status(200).json({ data: deletedEnrollment });
     } catch (error) {
         console.error("DELETE /classes/:id/enroll error:", error);
         res.status(500).json({ error: "Failed to unenroll student" });

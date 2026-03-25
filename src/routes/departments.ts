@@ -1,5 +1,6 @@
 import express from "express";
 import { and, desc, eq, getTableColumns, ilike, or, sql } from "drizzle-orm";
+import { checkRole } from "../middleware/auth.js";
 
 import { db } from "../db/index.js";
 import {
@@ -70,7 +71,7 @@ router.get("/", async (req, res) => {
     }
 });
 
-router.post("/", async (req, res) => {
+router.post("/", checkRole(["admin", "teacher"]), async (req, res) => {
     try {
         const { code, name, description } = req.body;
 
@@ -356,7 +357,7 @@ router.get("/:id/users", async (req, res) => {
 });
 
 // Update a department
-router.put("/:id", async (req, res) => {
+router.put("/:id", checkRole(["admin", "teacher"]), async (req, res) => {
     try {
         const departmentId = Number(req.params.id);
         if (!Number.isFinite(departmentId)) {
@@ -383,7 +384,7 @@ router.put("/:id", async (req, res) => {
 });
 
 // Delete a department
-router.delete("/:id", async (req, res) => {
+router.delete("/:id", checkRole(["admin", "teacher"]), async (req, res) => {
     try {
         const departmentId = Number(req.params.id);
         if (!Number.isFinite(departmentId)) {

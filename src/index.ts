@@ -10,6 +10,7 @@ import departmentsRouter from "./routes/departments.js";
 import securityMiddleware from './middleware/security.js';
 import { auth } from './lib/auth.js';
 import { toNodeHandler } from 'better-auth/node';
+import { authMiddleware } from './middleware/auth.js';
 
 const app = express();
 const PORT = 8000;
@@ -25,6 +26,7 @@ app.use(cors({
 app.all("/api/auth/*splat", toNodeHandler(auth));
 
 app.use(express.json());
+app.use(authMiddleware);
 
 app.use('/api/subjects', subjectsRouter)
 app.use('/api/users', usersRouter)

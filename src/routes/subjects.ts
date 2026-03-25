@@ -3,6 +3,7 @@ import { eq, ilike, or, and, desc, sql, getTableColumns } from "drizzle-orm";
 
 import { db } from "../db/index.js";
 import { classes, departments, enrollments, subjects, user } from "../db/schema/index.js";
+import { checkRole } from "../middleware/auth.js";
 
 const router = express.Router();
 
@@ -72,7 +73,7 @@ router.get("/", async (req, res) => {
     }
 });
 
-router.post("/", async (req, res) => {
+router.post("/", checkRole(["admin", "teacher"]), async (req, res) => {
     try {
         const { departmentId, name, code, description } = req.body;
 
@@ -279,7 +280,7 @@ router.get("/:id/users", async (req, res) => {
 });
 
 // Update a subject
-router.put("/:id", async (req, res) => {
+router.put("/:id", checkRole(["admin", "teacher"]), async (req, res) => {
     try {
         const subjectId = Number(req.params.id);
         if (!Number.isFinite(subjectId)) {
@@ -306,7 +307,7 @@ router.put("/:id", async (req, res) => {
 });
 
 // Delete a subject
-router.delete("/:id", async (req, res) => {
+router.delete("/:id", checkRole(["admin", "teacher"]), async (req, res) => {
     try {
         const subjectId = Number(req.params.id);
         if (!Number.isFinite(subjectId)) {
