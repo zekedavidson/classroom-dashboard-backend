@@ -4,7 +4,7 @@ import { db } from "../db/index.js";
 import * as schema from "../db/schema/auth.js"
 
 export const auth = betterAuth({
-    trustedOrigins: ["chrome-extension://amknoiejhlmhancpahfcfcfhllgkpbld"],
+    trustedOrigins: ["chrome-extension://amknoiejhlmhancpahfcfcfhllgkpbld", process.env.FRONTEND_URL as string],
     database: drizzleAdapter(db, {
         provider: "pg",
         schema,

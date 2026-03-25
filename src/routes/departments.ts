@@ -355,4 +355,55 @@ router.get("/:id/users", async (req, res) => {
     }
 });
 
+// Update a department
+router.put("/:id", async (req, res) => {
+    try {
+        const departmentId = Number(req.params.id);
+        if (!Number.isFinite(departmentId)) {
+            return res.status(400).json({ error: "Invalid department id" });
+        }
+
+        const { code, name, description } = req.body;
+
+        const [updatedDepartment] = await db
+            .update(departments)
+            .set({ code, name, description })
+            .where(eq(departments.id, departmentId))
+            .returning();
+
+        if (!updatedDepartment) {
+            return res.status(404).json({ error: "Department not found" });
+        }
+
+        res.status(200).json({ data: updatedDepartment });
+    } catch (error) {
+        console.error("PUT /departments/:id error:", error);
+        res.status(500).json({ error: "Failed to update department" });
+    }
+});
+
+// Delete a department
+router.delete("/:id", async (req, res) => {
+    try {
+        const departmentId = Number(req.params.id);
+        if (!Number.isFinite(departmentId)) {
+            return res.status(400).json({ error: "Invalid department id" });
+        }
+
+        const [deletedDepartment] = await db
+            .delete(departments)
+            .where(eq(departments.id, departmentId))
+            .returning({ id: departments.id });
+
+        if (!deletedDepartment) {
+            return res.status(404).json({ error: "Department not found" });
+        }
+
+        res.status(200).json({ data: deletedDepartment });
+    } catch (error) {
+        console.error("DELETE /departments/:id error:", error);
+        res.status(500).json({ error: "Failed to delete department" });
+    }
+});
+
 export default router;

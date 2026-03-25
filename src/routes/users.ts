@@ -63,4 +63,98 @@ router.get("/", async (req, res) => {
     }
 })
 
+// Get user details
+router.get("/:id", async (req, res) => {
+    try {
+        const userId = req.params.id;
+        const [userDetails] = await db
+            .select()
+            .from(user)
+            .where(eq(user.id, userId));
+
+        if (!userDetails) {
+            return res.status(404).json({ error: "User not found" });
+        }
+
+        res.status(200).json({ data: userDetails });
+    } catch (error) {
+        console.error("GET /users/:id error:", error);
+        res.status(500).json({ error: "Failed to fetch user details" });
+    }
+});
+
+// Create a user
+router.post("/", async (req, res) => {
+    try {
+        const { name, email, role, image, emailVerified } = req.body;
+        // In a real app auth should handle creation, but we provide this for admin CRUD
+        const newId = crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 10);
+        
+        const [createdUser] = await db
+            .insert(user)
+            .values({ 
+                id: newId, 
+                name, 
+                email, 
+                role, 
+                image, 
+                emailVerified: emailVerified ?? false, 
+                createdAt: new Date(), 
+                updatedAt: new Date() 
+            })
+            .returning();
+            
+        if (!createdUser) throw Error;
+
+        res.status(201).json({ data: createdUser });
+    } catch (error) {
+        console.error("POST /users error:", error);
+        res.status(500).json({ error: "Failed to create user" });
+    }
+});
+
+// Update a user
+router.put("/:id", async (req, res) => {
+    try {
+        const userId = req.params.id;
+        const { name, email, role, image, emailVerified } = req.body;
+
+        const [updatedUser] = await db
+            .update(user)
+            .set({ name, email, role, image, emailVerified, updatedAt: new Date() })
+            .where(eq(user.id, userId))
+            .returning();
+
+        if (!updatedUser) {
+             return res.status(404).json({ error: "User not found" });
+        }
+
+        res.status(200).json({ data: updatedUser });
+    } catch (error) {
+        console.error("PUT /users/:id error:", error);
+        res.status(500).json({ error: "Failed to update user" });
+    }
+});
+
+// Delete a user
+router.delete("/:id", async (req, res) => {
+    try {
+        const userId = req.params.id;
+
+        const [deletedUser] = await db
+            .delete(user)
+            .where(eq(user.id, userId))
+            .returning({ id: user.id });
+
+        if (!deletedUser) {
+            return res.status(404).json({ error: "User not found" });
+        }
+
+        res.status(200).json({ data: deletedUser });
+    } catch (error) {
+        console.error("DELETE /users/:id error:", error);
+        res.status(500).json({ error: "Failed to delete user" });
+    }
+});
+
 export default router;

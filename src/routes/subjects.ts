@@ -278,4 +278,55 @@ router.get("/:id/users", async (req, res) => {
     }
 });
 
+// Update a subject
+router.put("/:id", async (req, res) => {
+    try {
+        const subjectId = Number(req.params.id);
+        if (!Number.isFinite(subjectId)) {
+            return res.status(400).json({ error: "Invalid subject id" });
+        }
+
+        const { departmentId, name, code, description } = req.body;
+
+        const [updatedSubject] = await db
+            .update(subjects)
+            .set({ departmentId, name, code, description })
+            .where(eq(subjects.id, subjectId))
+            .returning();
+
+        if (!updatedSubject) {
+            return res.status(404).json({ error: "Subject not found" });
+        }
+
+        res.status(200).json({ data: updatedSubject });
+    } catch (error) {
+        console.error("PUT /subjects/:id error:", error);
+        res.status(500).json({ error: "Failed to update subject" });
+    }
+});
+
+// Delete a subject
+router.delete("/:id", async (req, res) => {
+    try {
+        const subjectId = Number(req.params.id);
+        if (!Number.isFinite(subjectId)) {
+            return res.status(400).json({ error: "Invalid subject id" });
+        }
+
+        const [deletedSubject] = await db
+            .delete(subjects)
+            .where(eq(subjects.id, subjectId))
+            .returning({ id: subjects.id });
+
+        if (!deletedSubject) {
+            return res.status(404).json({ error: "Subject not found" });
+        }
+
+        res.status(200).json({ data: deletedSubject });
+    } catch (error) {
+        console.error("DELETE /subjects/:id error:", error);
+        res.status(500).json({ error: "Failed to delete subject" });
+    }
+});
+
 export default router;
